@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>电信设备授权</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main>
+    <h1>电信设备授权</h1>
+    <p class="notice">仅在可信局域网使用。请手动完成滑块，不要重复请求短信。</p>
+
+    <section aria-labelledby="phone-heading">
+      <h2 id="phone-heading">1. 获取滑块</h2>
+      <label for="phone">手机号</label>
+      <input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="off" maxlength="11" required>
+      <button id="challenge-button" type="button">获取滑块</button>
+    </section>
+
+    <section aria-labelledby="slider-heading">
+      <h2 id="slider-heading">2. 手动滑块并发送短信</h2>
+      <div id="challenge-images" hidden>
+        <img id="background" alt="滑块背景图">
+        <img id="slider-piece" alt="滑块拼图">
+      </div>
+      <label for="slider">拖动到缺口位置</label>
+      <input id="slider" type="range" min="0" max="100" value="0" step="0.1" disabled>
+      <button id="refresh-button" type="button" disabled>刷新滑块</button>
+      <button id="send-button" type="button" disabled>发送一次短信</button>
+    </section>
+
+    <section aria-labelledby="sms-heading">
+      <h2 id="sms-heading">3. 提交短信验证码</h2>
+      <label for="sms-code">六位短信验证码</label>
+      <input id="sms-code" name="sms-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" disabled>
+      <button id="submit-button" type="button" disabled>提交验证码</button>
+    </section>
+
+    <section aria-labelledby="complete-heading">
+      <h2 id="complete-heading">4. 验证设备并完成</h2>
+      <label for="service-password">电信服务密码</label>
+      <input id="service-password" name="service-password" type="password" autocomplete="off" maxlength="128" disabled>
+      <button id="complete-button" type="button" disabled>验证并完成</button>
+    </section>
+
+    <output id="result" role="status" aria-live="polite"></output>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

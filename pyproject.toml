@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telecom-phone-device-id-tools"
+version = "1.0.0"
+description = "Local China Telecom DeviceId authorization tool for Home Assistant integration"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "margrop"}
+]
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31.0",
+    "pycryptodome>=3.20.0"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Utilities"
+]
+
+[project.urls]
+Homepage = "https://github.com/margrop/telecom-phone-device-id-tools"
+
+[tool.setuptools]
+package-dir = {"tools" = "tools"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tools.telecom_auth", "tools.telecom_auth.*"]
+
+[tool.setuptools.package-data]
+"tools.telecom_auth" = ["static/*"]

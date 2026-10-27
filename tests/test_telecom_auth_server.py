@@ -623,7 +623,7 @@ class ServerTests(unittest.TestCase):
             0,
             msg=f"STDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}",
         )
-        self.assertIn("pass 4", completed.stdout)
+        self.assertIn("pass 5", completed.stdout)
 
     def test_static_page_is_self_contained_and_embeds_fresh_token(self):
         status, headers, page = self.request("GET", f"/?token={self.token}")
@@ -634,6 +634,8 @@ class ServerTests(unittest.TestCase):
         self.assertIn('id="slider"', page)
         self.assertIn('id="sms-code"', page)
         self.assertIn('id="result"', page)
+        self.assertIn('id="device-id-value"', page)
+        self.assertIn('id="copy-button"', page)
         self.assertNotIn(self.token, page)
         self.assertIn('<meta id="access-token" name="access-token" content="', page)
         self.assertNotIn("http://", page)

@@ -39,10 +39,17 @@
     </section>
 
     <section aria-labelledby="complete-heading">
-      <h2 id="complete-heading">4. 验证设备并完成</h2>
-      <label for="service-password">电信服务密码</label>
+      <h2 id="complete-heading">4. 验证设备（可选）</h2>
+      <label for="service-password">电信服务密码（可选，用于验证 DeviceId）</label>
       <input id="service-password" name="service-password" type="password" autocomplete="off" maxlength="128" disabled>
-      <button id="complete-button" type="button" disabled>验证并完成</button>
+      <button id="complete-button" type="button" disabled>验证 DeviceId</button>
+    </section>
+
+    <section aria-labelledby="device-id-heading" id="device-id-section" hidden>
+      <h2 id="device-id-heading">DeviceId</h2>
+      <p>复制以下 DeviceId 到 HA 集成的“短信授权 DeviceId”配置项中：</p>
+      <code id="device-id-value"></code>
+      <button id="copy-button" type="button">复制 DeviceId</button>
     </section>
 
     <output id="result" role="status" aria-live="polite"></output>

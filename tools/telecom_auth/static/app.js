@@ -8,6 +8,7 @@ let sliderGeometry = null;
 let dragStart = null;
 let dragTrack = [];
 let dragEnd = null;
+let currentDeviceId = null;
 
 const element = (id) => document.getElementById(id);
 const result = element("result");
@@ -110,6 +111,7 @@ function resetWorkflow() {
   slider.disabled = true;
   element("slider-piece").style.left = "0px";
   element("challenge-images").hidden = true;
+  element("refresh-button").disabled = true;
   element("send-button").disabled = true;
   element("sms-code").value = "";
   element("sms-code").disabled = true;
@@ -175,6 +177,7 @@ element("challenge-button").addEventListener("click", async () => {
     slider.max = String(travel);
     slider.value = "0";
     slider.disabled = false;
+    element("refresh-button").disabled = false;
     moveSliderPiece();
     show("请手动拖动滑块。会话十分钟后过期。");
   } catch (error) {
@@ -279,9 +282,12 @@ element("submit-button").addEventListener("click", async () => {
       return;
     }
     code.value = "";
+    currentDeviceId = data.device_id;
+    element("device-id-value").textContent = currentDeviceId;
+    element("device-id-section").hidden = false;
     element("service-password").disabled = false;
     element("complete-button").disabled = false;
-    show(`候选 DeviceId：${data.device_id}\n请输入服务密码完成验证。`);
+    show("短信登录成功，DeviceId 已显示在下方，可直接复制使用。\n如需验证 DeviceId 有效性，可输入服务密码点击验证。");
   } catch (error) {
     if (version === challengeVersion) {
       button.disabled = false;
@@ -306,11 +312,37 @@ element("complete-button").addEventListener("click", async () => {
     accessToken = null;
     resetWorkflow();
     element("phone").value = "";
-    show("设备验证完成，本次访问授权已注销。如需再次授权请刷新页面。");
+    show("设备验证完成，DeviceId 仍显示在下方。本次访问授权已注销，如需再次授权请刷新页面。");
   } catch (error) {
     if (version === challengeVersion) {
       button.disabled = false;
       show(error.message);
     }
+  }
+});
+
+function copyBySelection() {
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(element("device-id-value"));
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return document.execCommand("copy");
+}
+
+element("copy-button").addEventListener("click", async () => {
+  if (!currentDeviceId) {
+    show("请先完成短信登录获取 DeviceId");
+    return;
+  }
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(currentDeviceId);
+    } else if (!copyBySelection()) {
+      throw new Error("copy failed");
+    }
+    show("DeviceId 已复制到剪贴板");
+  } catch {
+    show("复制失败，请手动选择复制");
   }
 });

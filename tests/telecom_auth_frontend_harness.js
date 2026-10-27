@@ -43,7 +43,8 @@ function createHarness() {
   const ids = [
     "result", "slider", "phone", "background", "slider-piece",
     "challenge-images", "challenge-button", "send-button", "sms-code",
-    "submit-button", "service-password", "complete-button", "refresh-button"
+    "submit-button", "service-password", "complete-button", "refresh-button",
+    "device-id-section", "device-id-value", "copy-button"
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new FakeElement(id)]));
   elements["access-token"] = {content: "test-only"};
@@ -283,4 +284,38 @@ test("starting a new challenge resets the previous workflow while pending", asyn
   assert.equal(JSON.parse(requests[2].options.body).session_id, "replacement-session");
   requests[2].resolve({sent: true});
   await send;
+});
+
+test("device id stays visible after a new challenge and after verification", async () => {
+  const harness = createHarness();
+  const {elements, requests} = harness;
+  const challengeClick = elements["challenge-button"].dispatch("click");
+  requests[0].resolve(challenge("device-session"));
+  await challengeClick;
+  assert.equal(elements["refresh-button"].disabled, false);
+  elements.slider.value = "140";
+  await elements.slider.dispatch("input");
+  const send = elements["send-button"].dispatch("click");
+  requests[1].resolve({sent: true});
+  await send;
+
+  elements["sms-code"].value = "123456";
+  const submit = elements["submit-button"].dispatch("click");
+  requests[2].resolve({device_id: "device-123"});
+  await submit;
+  assert.equal(elements["device-id-section"].hidden, false);
+  assert.equal(elements["device-id-value"].textContent, "device-123");
+
+  elements["service-password"].value = "secret";
+  const complete = elements["complete-button"].dispatch("click");
+  requests[3].resolve({completed: true});
+  await complete;
+  assert.equal(elements["device-id-section"].hidden, false);
+  assert.equal(elements["device-id-value"].textContent, "device-123");
+
+  const next = elements["challenge-button"].dispatch("click");
+  assert.equal(elements["refresh-button"].disabled, true);
+  assert.equal(elements["device-id-section"].hidden, false);
+  assert.equal(elements["device-id-value"].textContent, "device-123");
+  await next;
 });

@@ -154,8 +154,17 @@ class SessionStoreTests(unittest.TestCase):
 
 class AccessControlTests(unittest.TestCase):
     def setUp(self):
-        self.token = secrets.token_urlsafe(32)
-        self.control = AccessControl(self.token)
+        self.clock = FakeClock()
+        self.control = AccessControl(ttl=600, now=self.clock, limit=3)
+        self.token = self.control.issue()
+
+    def test_issue_returns_distinct_32_byte_tokens(self):
+        other = self.control.issue()
+
+        self.assertNotEqual(self.token, other)
+        self.assertEqual(len(base64.urlsafe_b64decode(other + "=")), 32)
+        self.assertIs(self.control.is_valid(self.token), True)
+        self.assertIs(self.control.is_valid(other), True)
 
     @mock.patch("tools.telecom_auth.security.hmac.compare_digest")
     def test_is_valid_uses_constant_time_comparison(self, compare_digest):
@@ -167,23 +176,38 @@ class AccessControlTests(unittest.TestCase):
             self.token.encode("utf-8"), self.token.encode("utf-8")
         )
 
-    def test_is_valid_accepts_only_matching_token(self):
+    def test_is_valid_accepts_only_issued_tokens(self):
         wrong_token = secrets.token_urlsafe(32)
 
         self.assertIs(self.control.is_valid(self.token), True)
         self.assertIs(self.control.is_valid(wrong_token), False)
         self.assertIs(self.control.is_valid("不是 ASCII"), False)
 
-    def test_revoke_invalidates_token(self):
-        self.control.revoke()
+    def test_tokens_expire_after_idle_ttl(self):
+        self.clock.advance(599)
+        self.assertIs(self.control.is_valid(self.token), True)
+        self.clock.advance(600)
 
         self.assertIs(self.control.is_valid(self.token), False)
-        self.assertIsNone(self.control._token)
+
+    def test_oldest_tokens_are_evicted_beyond_limit(self):
+        others = [self.control.issue() for _ in range(3)]
+
+        self.assertIs(self.control.is_valid(self.token), False)
+        for token in others:
+            self.assertIs(self.control.is_valid(token), True)
+
+    def test_revoke_invalidates_only_that_token(self):
+        other = self.control.issue()
+        self.control.revoke(self.token)
+
+        self.assertIs(self.control.is_valid(self.token), False)
+        self.assertIs(self.control.is_valid(other), True)
 
     def test_revoke_is_idempotent(self):
-        self.control.revoke()
+        self.control.revoke(self.token)
 
-        self.assertIsNone(self.control.revoke())
+        self.assertIsNone(self.control.revoke(self.token))
         self.assertIs(self.control.is_valid(self.token), False)
 
 

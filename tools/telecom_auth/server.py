@@ -15,9 +15,9 @@ from .telecom import TelecomAuth, TelecomAuthError
 
 MAX_BODY_BYTES = 16 * 1024
 _STATIC_ROOT = Path(__file__).resolve().parent / "static"
+_INDEX_PATHS = {"/", "/index.html"}
+_TOKEN_PLACEHOLDER = '<meta id="access-token" name="access-token" content="">'
 _STATIC_FILES = {
-    "/": ("index.html", "text/html; charset=utf-8"),
-    "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/style.css": ("style.css", "text/css; charset=utf-8"),
 }
@@ -189,9 +189,8 @@ class _OperationLocks:
 class TelecomAuthHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address, token, protocol_factory, ttl, now):
-        self.token = token or secrets.token_urlsafe(32)
-        self.access_control = AccessControl(self.token)
+    def __init__(self, address, protocol_factory, ttl, now):
+        self.access_control = AccessControl(now=now)
         self.protocol_factory = protocol_factory
         self.sessions = _ProtocolSessionStore(
             lambda phone: self.protocol_factory(phone), ttl, now
@@ -213,6 +212,9 @@ class TelecomAuthRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path in _INDEX_PATHS:
+            self._serve_index()
+            return
         static_file = _STATIC_FILES.get(path)
         if static_file is None:
             self._send_json(404, {"error": "Not found"})
@@ -220,6 +222,15 @@ class TelecomAuthRequestHandler(BaseHTTPRequestHandler):
         filename, content_type = static_file
         content = (_STATIC_ROOT / filename).read_bytes()
         self._send_bytes(200, content, content_type)
+
+    def _serve_index(self):
+        token = self.server.access_control.issue()
+        content = (_STATIC_ROOT / "index.html").read_text(encoding="utf-8")
+        content = content.replace(
+            _TOKEN_PLACEHOLDER,
+            f'<meta id="access-token" name="access-token" content="{token}">',
+        )
+        self._send_bytes(200, content.encode("utf-8"), "text/html; charset=utf-8")
 
     def do_POST(self):
         path = urlsplit(self.path).path
@@ -275,7 +286,10 @@ class TelecomAuthRequestHandler(BaseHTTPRequestHandler):
         candidate = value[7:]
         if not candidate or candidate.strip() != candidate or " " in candidate:
             return False
-        return self.server.access_control.is_valid(candidate)
+        if not self.server.access_control.is_valid(candidate):
+            return False
+        self._access_token = candidate
+        return True
 
     def _read_json(self):
         if self.headers.get("Transfer-Encoding") is not None:
@@ -416,7 +430,7 @@ class TelecomAuthRequestHandler(BaseHTTPRequestHandler):
             if not verified:
                 raise _RequestError(400, "Device verification failed")
             self.server.sessions.complete(session_id)
-            self.server.access_control.revoke()
+            self.server.access_control.revoke(self._access_token)
         self._send_json(200, {"completed": True})
 
     @staticmethod
@@ -452,11 +466,10 @@ def create_server(
     host="127.0.0.1",
     port=0,
     *,
-    token=None,
     protocol_factory=TelecomAuth,
     ttl=600,
     now=None,
 ):
     return TelecomAuthHTTPServer(
-        (host, port), token, protocol_factory, ttl, now
+        (host, port), protocol_factory, ttl, now
     )

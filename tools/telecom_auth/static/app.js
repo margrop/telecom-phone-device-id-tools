@@ -1,11 +1,6 @@
 "use strict";
 
-const params = new URLSearchParams(window.location.search);
-let accessToken = params.get("token");
-if (accessToken !== null) {
-  params.delete("token");
-  history.replaceState(null, document.title, window.location.pathname);
-}
+let accessToken = document.getElementById("access-token").content || null;
 
 let sessionId = null;
 let challengeVersion = 0;
@@ -34,7 +29,7 @@ function imageSource(value) {
 
 async function api(path, payload) {
   if (!accessToken) {
-    throw new Error("缺少访问授权，请使用启动时显示的初始链接");
+    throw new Error("访问授权已失效，请刷新页面获取新的授权");
   }
   const response = await fetch(path, {
     method: "POST",
@@ -51,6 +46,7 @@ async function api(path, payload) {
   if (!response.ok) {
     if (response.status === 401) {
       accessToken = null;
+      throw new Error("访问授权已失效，请刷新页面获取新的授权");
     }
     throw new Error(data.error || "请求失败");
   }
@@ -310,7 +306,7 @@ element("complete-button").addEventListener("click", async () => {
     accessToken = null;
     resetWorkflow();
     element("phone").value = "";
-    show("设备验证完成，本次访问授权已注销。");
+    show("设备验证完成，本次访问授权已注销。如需再次授权请刷新页面。");
   } catch (error) {
     if (version === challengeVersion) {
       button.disabled = false;

@@ -27,7 +27,7 @@ def main(argv=None):
     server = create_server(arguments.host, arguments.port)
     host = _lan_address() if arguments.host == "0.0.0.0" else arguments.host
     port = server.server_address[1]
-    print(f"Open: http://{host}:{port}/?token={server.token}", flush=True)
+    print(f"Open: http://{host}:{port}/", flush=True)
     if arguments.host != "127.0.0.1":
         print(
             "Warning: use only on a trusted LAN; traffic uses plain HTTP.",

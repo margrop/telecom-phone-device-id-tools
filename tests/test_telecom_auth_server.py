@@ -4,6 +4,7 @@ import http.client
 import io
 import json
 import pathlib
+import re
 import secrets
 import socket
 import subprocess
@@ -99,13 +100,11 @@ class ServerTests(unittest.TestCase):
         FakeProtocol.active_calls = 0
         FakeProtocol.maximum_active_calls = 0
         self.clock = FakeClock()
-        self.token = secrets.token_urlsafe(32)
         self.phone = runtime_digits(11)
         self.sms_code = runtime_digits(6)
         self.server = create_server(
             "127.0.0.1",
             0,
-            token=self.token,
             protocol_factory=FakeProtocol,
             ttl=600,
             now=self.clock,
@@ -113,6 +112,17 @@ class ServerTests(unittest.TestCase):
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.host, self.port = self.server.server_address
+        self.token = self.page_token()
+
+    def page_token(self, path="/"):
+        status, _, page = self.request("GET", path)
+        self.assertEqual(status, 200)
+        match = re.search(
+            r'<meta id="access-token" name="access-token" content="([A-Za-z0-9_-]{43})">',
+            page.decode("utf-8"),
+        )
+        self.assertIsNotNone(match)
+        return match.group(1)
 
     def tearDown(self):
         self.server.shutdown()
@@ -195,14 +205,27 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(arguments.host, "127.0.0.1")
         self.assertEqual(arguments.port, 8765)
 
-    def test_generated_access_token_has_32_random_bytes(self):
-        server = create_server(
-            "127.0.0.1", 0, protocol_factory=FakeProtocol, ttl=600, now=self.clock
-        )
-        self.addCleanup(server.server_close)
+    def test_each_page_load_issues_new_32_byte_access_token(self):
+        second = self.page_token()
+        third = self.page_token("/index.html")
 
-        self.assertIsInstance(server.access_control, AccessControl)
-        self.assertEqual(len(base64.urlsafe_b64decode(server.token + "=")), 32)
+        self.assertIsInstance(self.server.access_control, AccessControl)
+        self.assertEqual(len({self.token, second, third}), 3)
+        for token in (self.token, second, third):
+            self.assertEqual(len(base64.urlsafe_b64decode(token + "=")), 32)
+            self.assertIs(self.server.access_control.is_valid(token), True)
+
+    def test_page_access_tokens_expire_after_idle_ttl(self):
+        self.clock.advance(1799)
+        self.assertIs(self.server.access_control.is_valid(self.token), True)
+        self.clock.advance(1799)
+        self.assertIs(self.server.access_control.is_valid(self.token), True)
+        self.clock.advance(1800)
+
+        status, _, _ = self.post(
+            "/api/challenge", {"phone": self.phone}, token=self.token
+        )
+        self.assertEqual(status, 401)
 
     def test_api_requires_exact_bearer_token(self):
         for headers in (
@@ -235,6 +258,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(FakeProtocol.instances[0].challenge_calls, 1)
 
     def test_complete_operator_workflow_and_revocation(self):
+        other_token = self.page_token()
         session_id = self.start_challenge()["session_id"]
         distance = 0.5
         track = "0.000#0.000#1000%0.500#0.000#1500"
@@ -282,6 +306,12 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 401)
         with self.assertRaises(Exception):
             self.server.sessions.get(session_id)
+        self.assertIs(self.server.access_control.is_valid(other_token), True)
+
+        status, _, _ = self.post(
+            "/api/challenge", {"phone": self.phone}, token=self.page_token()
+        )
+        self.assertEqual(status, 200)
 
     def test_failed_device_verification_does_not_complete_or_revoke(self):
         session_id = self.start_login_session()
@@ -595,7 +625,7 @@ class ServerTests(unittest.TestCase):
         )
         self.assertIn("pass 4", completed.stdout)
 
-    def test_static_page_is_self_contained_and_removes_url_token(self):
+    def test_static_page_is_self_contained_and_embeds_fresh_token(self):
         status, headers, page = self.request("GET", f"/?token={self.token}")
         self.assertEqual(status, 200)
         page = page.decode("utf-8")
@@ -605,6 +635,7 @@ class ServerTests(unittest.TestCase):
         self.assertIn('id="sms-code"', page)
         self.assertIn('id="result"', page)
         self.assertNotIn(self.token, page)
+        self.assertIn('<meta id="access-token" name="access-token" content="', page)
         self.assertNotIn("http://", page)
         self.assertNotIn("https://", page)
         self.assertIn('src="/app.js"', page)
@@ -614,9 +645,8 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         script = script.decode("utf-8")
         self.assert_security_headers(headers)
-        self.assertIn("new URLSearchParams(window.location.search)", script)
-        self.assertIn('params.get("token")', script)
-        self.assertIn("history.replaceState", script)
+        self.assertIn('document.getElementById("access-token").content', script)
+        self.assertNotIn("window.location", script)
         self.assertIn("Authorization", script)
         self.assertIn("`Bearer ${accessToken}`", script)
         self.assertNotIn("localStorage", script)

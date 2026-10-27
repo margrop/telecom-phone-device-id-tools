@@ -46,6 +46,7 @@ function createHarness() {
     "submit-button", "service-password", "complete-button", "refresh-button"
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new FakeElement(id)]));
+  elements["access-token"] = {content: "test-only"};
   elements.phone.value = "13000000000";
   elements.background.clientWidth = 560;
   elements.background.naturalWidth = 340;
@@ -54,7 +55,6 @@ function createHarness() {
   elements["slider-piece"].naturalWidth = 60;
   elements["slider-piece"].naturalHeight = 200;
   elements["slider-piece"].opaqueBox = {x: 0, y: 0, width: 60, height: 200};
-  const historyCalls = [];
   const requests = [];
   let now = 1000;
 
@@ -107,19 +107,10 @@ function createHarness() {
       };
     }
   };
-  const window = {location: {search: "?token=test-only", pathname: "/"}};
-  const history = {
-    replaceState(...args) {
-      historyCalls.push(args);
-    }
-  };
   const fakeDate = {now: () => now};
   vm.runInNewContext(applicationSource, {
-    window,
     document,
-    history,
     fetch,
-    URLSearchParams,
     Date: fakeDate,
     Promise,
     Number,
@@ -133,7 +124,6 @@ function createHarness() {
   return {
     elements,
     requests,
-    historyCalls,
     setNow(value) {
       now = value;
     }
@@ -157,8 +147,8 @@ function challenge(sessionId) {
 test("slider piece and submitted distance use the same normalized coordinate", async () => {
   const harness = createHarness();
   const {elements, requests} = harness;
-  assert.equal(harness.historyCalls.length, 1);
   const challengeClick = elements["challenge-button"].dispatch("click");
+  assert.equal(requests[0].options.headers.Authorization, "Bearer test-only");
   requests[0].resolve(challenge("current-session"));
   await challengeClick;
 
